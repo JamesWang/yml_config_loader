@@ -1,0 +1,4 @@
+variables:
+    server_name: "google.com"
+    user_name: "abcd"
+    CMD_DIR: "D://temp"

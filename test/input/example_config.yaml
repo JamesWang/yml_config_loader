@@ -1,0 +1,14 @@
+includes:
+  - sub_config.yaml
+
+cmd_dir: &CMD_DIR
+  "${CMD_DIR}/ABC"
+process:
+  prepare_data:
+      - sftp
+      - ssh
+      - cleanup
+  analyze:
+    command: "nothing here"
+  visualize:
+    command: !join [*CMD_DIR, "/print", " 'This is a test for `{user_name}`"]
