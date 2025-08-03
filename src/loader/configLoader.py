@@ -2,8 +2,6 @@ import os
 import re
 from typing import List
 
-import yaml
-
 ENV_VARIABLE_PATTERN = re.compile(".*(\\${?([\\w,.]+)}?)")
 INTERPOLATION_PATTERN = re.compile(".*(?<!$){([\\w,.]+)}")
 
@@ -17,7 +15,11 @@ class AsClassMember(dict):
 
 
 def is_an_env_var(expr):
-    return isinstance(expr, str) and len(expr) > 1 and expr[0] == "$"
+    try:
+        _matched = ENV_VARIABLE_PATTERN.match(expr)
+    except Exception as ex:
+        raise Exception("Matching variables failed for {} with error {}\n".format(expr, ex))
+    return _matched
 
 
 def need_interpolate_in_list(exprs: List[str]) -> List[str]:
@@ -47,16 +49,12 @@ def resolve_env_variables(expression):
     return expression
 
 
-def join(yml_loader, node):
-    _items = yml_loader.construct_sequence(node)
-    _resolved_items = [resolve_env_variables(str(expr)) for expr in _items]
-    return "".join(_resolved_items)
-
-
-yaml.SafeLoader.add_constructor("!join", join)
-
-
 def resolve_vars_for_dict_values(in_dict: dict, value_dict: dict) -> dict:
+    """
+    :param in_dict: input_dict which contains $XYZ or ${XYZ} and will be resolved to the real value defined in value_dict
+    :param value_dict: Name/Value pairs predefined used to replace in_dict's env-variable(placeholders)
+    :return: in_dict with placeholders being resolved to real value
+    """
     for (_key, _val) in in_dict.items():
         in_dict[_key] = resolve_variables_value(_val, value_dict)
     return in_dict
@@ -66,13 +64,9 @@ def resolve_variables_value(expr, value_dict):
     _replacing = True
 
     while _replacing:
-        try:
-            _matched = ENV_VARIABLE_PATTERN.match(expr)
-        except Exception as ex:
-            raise Exception("Matching variables failed for {} with error {}\n".format(expr, ex))
-
         _replacing = False
 
+        _matched = is_an_env_var(expr)
         if _matched:
             _replacing = True
             _prefix = _matched.group(1)
@@ -96,7 +90,7 @@ def resolve_variables_value(expr, value_dict):
             return expr.format(**value_dict) if need_interpolate(expr) else expr
 
 
-def get_resolved_dict_values(conf_dict: dict, value_dict: dict):
+def get_resolved_dict_values(conf_dict: dict, value_dict: dict) -> dict[str, any]:
     resolved_dict_values = {}
 
     for key, value in conf_dict.items():
@@ -220,12 +214,3 @@ class ConfigLoader:
                     value = value.format(**variables_dict)
                 resolved_dict[key] = value
         return resolved_dict
-
-
-if __name__ == "__main__":
-    config_loader = ConfigLoader(
-        config_file="../../test/input/example_config.yaml",
-        file_loader=yaml.safe_load
-    )
-    v = config_loader.load()
-    print(v)
