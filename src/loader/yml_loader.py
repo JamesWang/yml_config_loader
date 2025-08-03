@@ -1,3 +1,5 @@
+import os
+
 import yaml
 
 from src.loader.configLoader import resolve_env_variables, ConfigLoader
@@ -12,10 +14,22 @@ def join(yml_loader, node):
 yaml.SafeLoader.add_constructor("!join", join)
 
 
+def read_config_file(config_file):
+    if not os.path.isfile(config_file):
+        raise FileExistsError(f'Config file: {config_file} does not exist')
+
+    with open(config_file, "r") as f:
+        try:
+            return yaml.safe_load(f)
+        except yaml.YAMLError as ex:
+            print(f"Error: unable to load {config_file}")
+            raise ex
+
+
 if __name__ == "__main__":
     config_loader = ConfigLoader(
         config_file="../../test/input/example_config.yaml",
         file_loader=yaml.safe_load
     )
-    v = config_loader.load()
+    v = config_loader.load(read_config_file)
     print(v)

@@ -1,9 +1,11 @@
 import os
 import re
-from typing import List
+from typing import List, Callable
 
 ENV_VARIABLE_PATTERN = re.compile(".*(\\${?([\\w,.]+)}?)")
 INTERPOLATION_PATTERN = re.compile(".*(?<!$){([\\w,.]+)}")
+VARIABLES = "variables"
+INCLUDES = "includes"
 
 
 class AsClassMember(dict):
@@ -126,16 +128,16 @@ class ConfigLoader:
     def configs(self):
         return self.__configs
 
-    def load_with_variables(self) -> dict:
+    def load_with_variables(self, read_config_file: Callable) -> dict:
         conf = {}
-        self.__configs = self.load()
+        self.__configs = self.load(read_config_file)
 
         conf.update(self.__configs)
         conf['variables'] = self.__variables
         return conf
 
-    def load(self):
-        self.__configs = self.read_config_file(self.__config_file)
+    def load(self, read_config_file: Callable) -> dict:
+        self.__configs = read_config_file(self.__config_file)
         if not self.__configs:
             self.__configs = dict()
         self.__init_variables()
@@ -154,19 +156,8 @@ class ConfigLoader:
                 _variables[v_name] = v_value
         self.__variables.update(_variables)
 
-    def read_config_file(self, config_file):
-        if not os.path.isfile(config_file):
-            raise FileExistsError(f'Config file: {config_file} does not exist')
-
-        with open(config_file, "r") as f:
-            try:
-                return self.__file_loader(f)
-            except yaml.YAMLError as ex:
-                print(f"Error: unable to load {config_file}")
-                raise ex
-
     def _parse_included_variables(self):
-        return self.get_included_variables((self.__configs["includes"] if "includes" in self.__configs else []))
+        return self.get_included_variables((self.__configs[INCLUDES] if INCLUDES in self.__configs else []))
 
     def get_included_variables(self, includes_file, path: str = None):
         if isinstance(includes_file, list):
@@ -187,14 +178,14 @@ class ConfigLoader:
 
         with open(_included_file, "r") as stream:
             _tmp_configs = self.__file_loader(stream)
-            if "variables" in _tmp_configs:
-                for v_name, v_value in _tmp_configs["variables"].items():
+            if VARIABLES in _tmp_configs:
+                for v_name, v_value in _tmp_configs[VARIABLES].items():
                     _variables[v_name] = resolve_variables_value(v_value, os.environ) if isinstance(v_value,
                                                                                                     str) else v_value
 
-            if "includes" in _tmp_configs:
+            if INCLUDES in _tmp_configs:
                 _variables.update(self.get_included_variables(
-                    includes_file=_tmp_configs["includes"],
+                    includes_file=_tmp_configs[INCLUDES],
                     path=os.path.dirname(_included_file))
                 )
 
